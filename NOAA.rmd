@@ -1,0 +1,134 @@
+---
+title: "Storm Data Analysis"
+author: "Ashish Verma"
+date: "6/21/2019"
+synopsis: The analysis on the storm event database revealed that tornadoes are the
+  most dangerous weather event to the populations health. The second most dangerous
+  event type is excessive heat. The economic impact of weather events was also analyzed.
+  Flash floods and thunderstorm winds caused billions of dollars in property damages
+  between 1950 and 2011. The largest damage to crops were caused by droughts, followed
+  by floods and hailing.
+---
+# R Markdown
+
+### Loading the data
+```{r}
+library(ggplot2)
+library(gridExtra)
+#library(R.utils)
+#download.file(url = "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2",destfile ="repdata-data-StormData.csv.bz2" )
+if (!exists("stormData")) {
+    # Extract file if it is not already extracted
+    if (file.exists("repdata-data-StormData.csv.bz2")) {
+        if (!file.exists("repdata-data-StormData.csv")) {
+            bunzip2("repdata-data-StormData.csv.bz2", overwrite = F)
+        }
+        
+        # Read data into the varirable called stormData
+        stormData <- read.csv("repdata-data-StormData.csv", sep = ",")
+    }
+    
+}
+```
+### Data Processing for question 1
+```{r}
+# Trim the data set to required columns only
+stormEvent <- stormData[, c("BGN_DATE", "EVTYPE", "FATALITIES", "INJURIES", 
+    "PROPDMG", "PROPDMGEXP", "CROPDMG", "CROPDMGEXP")]
+
+# Create subset for Question 1 and Question 2
+
+# Select data for Fatalities and injuries for Question 1
+eventHealth <- subset(stormEvent, !stormEvent$FATALITIES == 0 & !stormEvent$INJURIES == 
+    0, select = c(EVTYPE, FATALITIES, INJURIES))
+
+# Select data for Property Damage and Crop Damage for Question 2
+eventEconomic <- subset(stormEvent, !stormEvent$PROPDMG == 0 & !stormEvent$CROPDMG == 
+    0, select = c(EVTYPE, PROPDMG, PROPDMGEXP, CROPDMG, CROPDMGEXP))
+
+
+# Create separate data set for Injury and Fatalities Fatalities
+eventHealth_Death <- aggregate(eventHealth$FATALITIES, by = list(eventHealth$EVTYPE), 
+    FUN = sum)
+# Give proper name for columns
+colnames(eventHealth_Death) <- c("EVENTTYPE", "FATALITIES")
+
+# Injury
+eventHealth_Inj <- aggregate(eventHealth$INJURIES, by = list(eventHealth$EVTYPE), 
+    FUN = sum)
+# Give column name
+colnames(eventHealth_Inj) <- c("EVENTTYPE", "INJURIES")
+
+# Let's reorder 2 dataset and filter top 5 events for both dataset
+eventHealth_Death <- eventHealth_Death[order(eventHealth_Death$FATALITIES, decreasing = TRUE), 
+    ][1:5, ]
+
+eventHealth_Inj <- eventHealth_Inj[order(eventHealth_Inj$INJURIES, decreasing = TRUE), 
+    ][1:5, ]
+
+```
+### Results of the processing
+```{r}
+# plot top 5 events for fatalities and injuries
+
+# Plot Fatalities and store at Death_plot
+Death_plot <- ggplot() + geom_bar(data = eventHealth_Death, aes(x = EVENTTYPE, 
+    y = FATALITIES, fill = interaction(FATALITIES, EVENTTYPE)), stat = "identity", 
+    show.legend = F) + theme(axis.text.x = element_text(angle = 30, hjust = 1)) + 
+    xlab("Harmful Events") + ylab("No. of fatailities") + ggtitle("Top 5 weather events causing fatalities") + 
+    theme(axis.text.x = element_text(angle = 30, hjust = 1))
+
+# Plot injuries and store at variable Inj_plot
+Inj_plot <- ggplot() + geom_bar(data = eventHealth_Inj, aes(x = EVENTTYPE, y = INJURIES, 
+    fill = interaction(INJURIES, EVENTTYPE)), stat = "identity", show.legend = F) + 
+    theme(axis.text.x = element_text(angle = 30, hjust = 1)) + xlab("Harmful Events") + 
+    ylab("No. of Injuries") + ggtitle("Top 5 weather events causing Injuries") + 
+    theme(axis.text.x = element_text(angle = 30, hjust = 1))
+
+# Draw two plots generated above dividing space in two columns
+
+grid.arrange(Death_plot, Inj_plot, ncol = 2)
+```
+### Data Processing for question 2
+```{r}
+# select required entries for economy
+eventEconomic <- subset(eventEconomic, eventEconomic$PROPDMGEXP == "K" | eventEconomic$PROPDMGEXP == 
+    "k" | eventEconomic$PROPDMGEXP == "M" | eventEconomic$PROPDMGEXP == "m" | 
+    eventEconomic$PROPDMGEXP == "B" | eventEconomic$PROPDMGEXP == "b")
+
+eventEconomic <- subset(eventEconomic, eventEconomic$CROPDMGEXP == "K" | eventEconomic$CROPDMGEXP == 
+    "k" | eventEconomic$CROPDMGEXP == "M" | eventEconomic$CROPDMGEXP == "m" | 
+    eventEconomic$CROPDMGEXP == "B" | eventEconomic$CROPDMGEXP == "b")
+
+# Convert ecnomic values to number
+eventEconomic$PROPDMGEXP <- gsub("m", 1e+06, eventEconomic$PROPDMGEXP, ignore.case = TRUE)
+eventEconomic$PROPDMGEXP <- gsub("k", 1000, eventEconomic$PROPDMGEXP, ignore.case = TRUE)
+eventEconomic$PROPDMGEXP <- gsub("b", 1e+09, eventEconomic$PROPDMGEXP, ignore.case = TRUE)
+eventEconomic$PROPDMGEXP <- as.numeric(eventEconomic$PROPDMGEXP)
+eventEconomic$CROPDMGEXP <- gsub("m", 1e+06, eventEconomic$CROPDMGEXP, ignore.case = TRUE)
+eventEconomic$CROPDMGEXP <- gsub("k", 1000, eventEconomic$CROPDMGEXP, ignore.case = TRUE)
+eventEconomic$CROPDMGEXP <- gsub("b", 1e+09, eventEconomic$CROPDMGEXP, ignore.case = TRUE)
+eventEconomic$CROPDMGEXP <- as.numeric(eventEconomic$CROPDMGEXP)
+eventEconomic$PROPDMGEXP <- as.numeric(eventEconomic$PROPDMGEXP)
+
+# then sum the damages by each event type
+eventEconomic$TOTALDMG <- (eventEconomic$CROPDMG * eventEconomic$CROPDMGEXP) + 
+    (eventEconomic$PROPDMG * eventEconomic$PROPDMGEXP)
+
+eventEconomic <- aggregate(eventEconomic$TOTALDMG, by = list(eventEconomic$EVTYPE), 
+    FUN = sum)
+
+colnames(eventEconomic) <- c("EVTYPE", "TOTALDMG")
+
+
+# Rank the event type by highest damage cost and take top 5 columns
+eventEconomic <- eventEconomic[order(eventEconomic$TOTALDMG, decreasing = TRUE), 
+    ]
+eventEconomic <- eventEconomic[1:5, ]
+
+# Now plot the graph
+ggplot() + geom_bar(data = eventEconomic, aes(x = EVTYPE, y = TOTALDMG, fill = interaction(TOTALDMG, 
+    EVTYPE)), stat = "identity", show.legend = F) + theme(axis.text.x = element_text(angle = 30, 
+    hjust = 1)) + xlab("Event Type") + ylab("Total Damage")
+
+```
